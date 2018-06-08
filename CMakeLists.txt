@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 project(lua-mongo)
 
 set(USE_LUA_VERSION "" CACHE STRING "Build against Lua version 'X.Y' (or 'JIT' for LuaJIT).")
@@ -9,13 +9,15 @@ if(USE_LUA_VERSION MATCHES "^[0-9]\\.[0-9]$")
 	string(REGEX REPLACE "\\." "" lua_ver2 ${lua_ver})
 	set(lua_names lua-${lua_ver} lua${lua_ver} lua${lua_ver2})
 elseif(USE_LUA_VERSION MATCHES "^(jit|JIT)$")
-	set(lua_ver "5.1")
+	set(lua_ver 5.1)
 	set(lua_names luajit)
-else()
+elseif(USE_LUA_VERSION STREQUAL "")
 	set(lua_names lua)
+else()
+	message(FATAL_ERROR "Invalid Lua version: ${USE_LUA_VERSION}")
 endif()
 
-find_package(libmongoc-1.0 1.7 REQUIRED)
+find_package(libmongoc-1.0 1.9 REQUIRED)
 find_package(PkgConfig)
 pkg_search_module(LUA REQUIRED ${lua_names})
 
@@ -30,19 +32,22 @@ if(NOT LUA_MODULE_PATH)
 	set(LUA_MODULE_PATH lib/lua/${lua_ver})
 endif()
 
-#add_definitions(-Wall -Wextra -Wpedantic -Wundef -Wshadow -Wredundant-decls)
+add_definitions(-Wall -Wextra -Wpedantic -Wundef -Wshadow -Wredundant-decls
+	-Wstrict-prototypes -Wmissing-prototypes -Wno-variadic-macros)
+
 include_directories(${MONGOC_INCLUDE_DIRS} ${LUA_INCLUDE_DIRS})
-link_directories(${MONGOC_INCLUDE_DIRS})
+link_directories(${MONGOC_LIBRARY_DIRS})
 
 file(GLOB srcs src/*.c)
 add_library(mongo SHARED ${srcs})
 target_link_libraries(mongo ${MONGOC_LIBRARIES})
 set_target_properties(mongo PROPERTIES PREFIX "")
 if(APPLE)
+	target_link_libraries(mongo "-undefined dynamic_lookup")
 	set_target_properties(mongo PROPERTIES SUFFIX ".so")
 endif()
 
-install(TARGETS mongo LIBRARY DESTINATION ${LUA_MODULE_PATH})
+install(TARGETS mongo DESTINATION ${LUA_MODULE_PATH})
 
 enable_testing()
 find_program(LUA_COMMAND NAMES ${lua_names})
